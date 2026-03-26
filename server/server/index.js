@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -167,6 +169,27 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('signal', {
       from: socket.id,
       signal,
+    });
+  });
+
+  socket.on('chat-message', ({ roomId, message }) => {
+    if (!roomId || typeof message !== 'string') {
+      return;
+    }
+
+    if (roomBySocket.get(socket.id) !== roomId) {
+      return;
+    }
+
+    const normalized = message.trim().slice(0, 500);
+    if (!normalized) {
+      return;
+    }
+
+    socket.to(roomId).emit('chat-message', {
+      from: socket.id,
+      message: normalized,
+      createdAt: Date.now(),
     });
   });
 

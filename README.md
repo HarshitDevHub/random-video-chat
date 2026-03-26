@@ -26,12 +26,13 @@ A simple random video chat app built with React, Express, Socket.IO, and WebRTC.
 
 ## Environment Variables
 
-Frontend optional variable in client/.env:
+Frontend file: client/.env
 
 VITE_SIGNAL_URL=http://localhost:3001
 
-Backend optional variable:
+Backend file: server/server/.env
 
+PORT=3001
 CLIENT_ORIGIN=http://localhost:5173
 
 ## Notes

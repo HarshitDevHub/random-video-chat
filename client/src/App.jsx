@@ -13,6 +13,8 @@ function App() {
   const [connected, setConnected] = useState(false)
   const [inCall, setInCall] = useState(false)
   const [autoSearch, setAutoSearch] = useState(true)
+  const [chatInput, setChatInput] = useState('')
+  const [chatMessages, setChatMessages] = useState([])
 
   const socketRef = useRef(null)
   const localVideoRef = useRef(null)
@@ -23,6 +25,12 @@ function App() {
   const autoSearchRef = useRef(true)
   const pendingIceCandidatesRef = useRef([])
   const isRematchingRef = useRef(false)
+  const chatBottomRef = useRef(null)
+
+  const clearChat = () => {
+    setChatMessages([])
+    setChatInput('')
+  }
 
   const cleanupPeer = ({ clearRoom = true } = {}) => {
     if (peerRef.current) {
@@ -51,11 +59,13 @@ function App() {
       return
     }
     setStatus('Searching for a random user...')
+    clearChat()
     socketRef.current.emit('join-random')
   }
 
   const handlePeerGone = (reason) => {
     cleanupPeer()
+    clearChat()
     setStatus(reason)
     if (autoSearchRef.current) {
       requestMatch()
@@ -69,6 +79,7 @@ function App() {
 
     isRematchingRef.current = true
     cleanupPeer()
+    clearChat()
     setStatus(reason)
 
     if (socketRef.current?.connected) {
@@ -180,6 +191,7 @@ function App() {
 
         socket.on('matched', async ({ roomId, initiator }) => {
           roomIdRef.current = roomId
+          clearChat()
           setStatus('Connected! Starting call...')
           await createPeerConnection(initiator)
         })
@@ -231,6 +243,17 @@ function App() {
         socket.on('peer-disconnected', () => {
           handlePeerGone('Peer disconnected')
         })
+
+        socket.on('chat-message', ({ message, createdAt }) => {
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: `${createdAt || Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              sender: 'stranger',
+              text: message,
+            },
+          ])
+        })
       } catch {
         setStatus('Camera or microphone access failed')
       }
@@ -259,8 +282,15 @@ function App() {
     }
   }, [autoSearch])
 
+  useEffect(() => {
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chatMessages])
+
   const onLeave = () => {
     cleanupPeer()
+    clearChat()
     if (socketRef.current?.connected) {
       socketRef.current.emit('leave-room')
     }
@@ -269,10 +299,37 @@ function App() {
 
   const onNext = () => {
     cleanupPeer()
+    clearChat()
     if (socketRef.current?.connected) {
       socketRef.current.emit('next-user')
       setStatus('Finding next random user...')
     }
+  }
+
+  const onSendMessage = (event) => {
+    event.preventDefault()
+
+    const trimmed = chatInput.trim()
+    if (!trimmed || !roomIdRef.current || !socketRef.current?.connected || !inCall) {
+      return
+    }
+
+    const now = Date.now()
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
+        sender: 'you',
+        text: trimmed,
+      },
+    ])
+
+    socketRef.current.emit('chat-message', {
+      roomId: roomIdRef.current,
+      message: trimmed,
+    })
+
+    setChatInput('')
   }
 
   return (
@@ -321,6 +378,39 @@ function App() {
           <li>Press Leave to end the current chat.</li>
           <li>When auto-search is enabled, disconnections trigger a new match.</li>
         </ul>
+      </section>
+
+      <section className="panel chat-panel">
+        <h3>Chat</h3>
+        <div className="chat-list" aria-live="polite">
+          {chatMessages.length === 0 ? (
+            <p className="chat-empty">No messages yet. Say hi when connected.</p>
+          ) : (
+            chatMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`chat-bubble ${msg.sender === 'you' ? 'you' : 'stranger'}`}
+              >
+                {msg.text}
+              </div>
+            ))
+          )}
+          <div ref={chatBottomRef}></div>
+        </div>
+
+        <form className="chat-form" onSubmit={onSendMessage}>
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(event) => setChatInput(event.target.value)}
+            placeholder={inCall ? 'Type a message...' : 'Connect to start chatting'}
+            disabled={!inCall}
+            maxLength={500}
+          />
+          <button type="submit" disabled={!inCall || !chatInput.trim()}>
+            Send
+          </button>
+        </form>
       </section>
     </main>
   )
