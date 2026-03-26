@@ -201,6 +201,41 @@
   cursor: not-allowed;
 }
 
+.emoji-row,
+.quick-row {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.emoji-row button {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+
+.quick-row button {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(30, 41, 59, 0.9);
+  color: #e2e8f0;
+  font-size: 13px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.emoji-row button:disabled,
+.quick-row button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 1200px) {
   .content-layout {
     grid-template-columns: minmax(0, 1fr) clamp(260px, 34vw, 360px);
@@ -241,6 +276,15 @@
   .video-card video {
     min-height: clamp(260px, 52vw, 360px);
   }
+
+  .quick-row {
+    gap: 6px;
+  }
+
+  .quick-row button {
+    font-size: 12px;
+    padding: 6px 9px;
+  }
 }
 
 @media (max-width: 540px) {
@@ -260,5 +304,10 @@
 
   .video-card video {
     min-height: clamp(220px, 62vw, 320px);
+  }
+
+  .emoji-row button {
+    font-size: 17px;
+    padding: 6px 8px;
   }
 }

@@ -8,6 +8,15 @@ const rtcConfig = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 }
 
+const EMOJIS = ['😀', '😂', '😍', '👍', '🙏', '🔥', '❤️', '🎉']
+const QUICK_MESSAGES = [
+  'Hi 👋',
+  'How are you?',
+  'Nice to meet you!',
+  'Can you hear me?',
+  'One sec please',
+]
+
 function App() {
   const [status, setStatus] = useState('Ready to start')
   const [connected, setConnected] = useState(false)
@@ -306,30 +315,44 @@ function App() {
     }
   }
 
-  const onSendMessage = (event) => {
-    event.preventDefault()
-
-    const trimmed = chatInput.trim()
+  const sendChatMessage = (rawMessage) => {
+    const trimmed = rawMessage.trim()
     if (!trimmed || !roomIdRef.current || !socketRef.current?.connected || !inCall) {
-      return
+      return false
     }
 
+    const message = trimmed.slice(0, 500)
     const now = Date.now()
     setChatMessages((prev) => [
       ...prev,
       {
         id: `${now}-${Math.random().toString(36).slice(2, 7)}`,
         sender: 'you',
-        text: trimmed,
+        text: message,
       },
     ])
 
     socketRef.current.emit('chat-message', {
       roomId: roomIdRef.current,
-      message: trimmed,
+      message,
     })
 
-    setChatInput('')
+    return true
+  }
+
+  const onSendMessage = (event) => {
+    event.preventDefault()
+    if (sendChatMessage(chatInput)) {
+      setChatInput('')
+    }
+  }
+
+  const onQuickMessage = (message) => {
+    sendChatMessage(message)
+  }
+
+  const onPickEmoji = (emoji) => {
+    setChatInput((prev) => `${prev}${emoji}`.slice(0, 500))
   }
 
   return (
@@ -414,6 +437,32 @@ function App() {
               Send
             </button>
           </form>
+
+          <div className="emoji-row" aria-label="Emoji shortcuts">
+            {EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => onPickEmoji(emoji)}
+                disabled={!inCall}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+
+          <div className="quick-row" aria-label="Quick messages">
+            {QUICK_MESSAGES.map((message) => (
+              <button
+                key={message}
+                type="button"
+                onClick={() => onQuickMessage(message)}
+                disabled={!inCall}
+              >
+                {message}
+              </button>
+            ))}
+          </div>
         </section>
       </div>
     </main>
