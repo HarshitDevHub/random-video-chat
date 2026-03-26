@@ -2,8 +2,21 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  width: min(1100px, calc(100vw - 32px));
+  width: min(1280px, calc(100vw - 24px));
   margin: 16px auto 28px;
+}
+
+.content-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 30vw, 420px);
+  gap: 18px;
+  align-items: start;
+}
+
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .panel {
@@ -12,6 +25,12 @@
   border-radius: 18px;
   padding: 18px;
   backdrop-filter: blur(8px);
+}
+
+.header-panel h1 {
+  margin: 0;
+  font-size: clamp(1.4rem, 2.2vw, 1.85rem);
+  line-height: 1.15;
 }
 
 .header-panel p {
@@ -60,7 +79,8 @@
 
 .video-card video {
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
+  min-height: clamp(260px, 36vw, 420px);
   background: #080d17;
   border-radius: 12px;
   object-fit: cover;
@@ -104,8 +124,13 @@
   margin: 0 0 10px;
 }
 
+.chat-panel {
+  position: sticky;
+  top: 16px;
+}
+
 .chat-list {
-  height: 220px;
+  height: clamp(340px, 54vh, 620px);
   overflow-y: auto;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -176,8 +201,64 @@
   cursor: not-allowed;
 }
 
+@media (max-width: 1200px) {
+  .content-layout {
+    grid-template-columns: minmax(0, 1fr) clamp(260px, 34vw, 360px);
+  }
+
+  .video-card video {
+    min-height: clamp(220px, 34vw, 340px);
+  }
+}
+
 @media (max-width: 900px) {
+  .app {
+    width: min(100%, calc(100vw - 16px));
+    gap: 14px;
+    margin: 8px auto 18px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .content-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-panel {
+    position: static;
+  }
+
+  .chat-list {
+    height: clamp(260px, 38vh, 360px);
+  }
+
   .videos {
     grid-template-columns: 1fr;
+  }
+
+  .video-card video {
+    min-height: clamp(260px, 52vw, 360px);
+  }
+}
+
+@media (max-width: 540px) {
+  .header-panel h1 {
+    font-size: 1.25rem;
+  }
+
+  .buttons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .buttons button {
+    padding: 10px 8px;
+    font-size: 14px;
+  }
+
+  .video-card video {
+    min-height: clamp(220px, 62vw, 320px);
   }
 }

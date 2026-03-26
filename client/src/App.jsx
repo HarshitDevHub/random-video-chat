@@ -343,75 +343,79 @@ function App() {
         </div>
       </section>
 
-      <section className="videos">
-        <div className="video-card">
-          <h2>You</h2>
-          <video ref={localVideoRef} autoPlay muted playsInline />
-        </div>
-        <div className="video-card">
-          <h2>Stranger</h2>
-          <video ref={remoteVideoRef} autoPlay playsInline />
-        </div>
-      </section>
+      <div className="content-layout">
+        <div className="left-column">
+          <section className="videos">
+            <div className="video-card">
+              <h2>You</h2>
+              <video ref={localVideoRef} autoPlay muted playsInline />
+            </div>
+            <div className="video-card">
+              <h2>Stranger</h2>
+              <video ref={remoteVideoRef} autoPlay playsInline />
+            </div>
+          </section>
 
-      <section className="panel controls">
-        <div className="buttons">
-          <button onClick={requestMatch}>Start</button>
-          <button onClick={onNext} disabled={!connected}>Next</button>
-          <button onClick={onLeave} disabled={!inCall}>Leave</button>
-        </div>
-        <label className="auto-search">
-          <input
-            type="checkbox"
-            checked={autoSearch}
-            onChange={(event) => setAutoSearch(event.target.checked)}
-          />
-          Auto-search when peer disconnects
-        </label>
-      </section>
+          <section className="panel controls">
+            <div className="buttons">
+              <button onClick={requestMatch}>Start</button>
+              <button onClick={onNext} disabled={!connected}>Next</button>
+              <button onClick={onLeave} disabled={!inCall}>Leave</button>
+            </div>
+            <label className="auto-search">
+              <input
+                type="checkbox"
+                checked={autoSearch}
+                onChange={(event) => setAutoSearch(event.target.checked)}
+              />
+              Auto-search when peer disconnects
+            </label>
+          </section>
 
-      <section className="panel tips">
-        <h3>How it works</h3>
-        <ul>
-          <li>Press Start to enter the random queue.</li>
-          <li>Press Next to switch instantly to another user.</li>
-          <li>Press Leave to end the current chat.</li>
-          <li>When auto-search is enabled, disconnections trigger a new match.</li>
-        </ul>
-      </section>
-
-      <section className="panel chat-panel">
-        <h3>Chat</h3>
-        <div className="chat-list" aria-live="polite">
-          {chatMessages.length === 0 ? (
-            <p className="chat-empty">No messages yet. Say hi when connected.</p>
-          ) : (
-            chatMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`chat-bubble ${msg.sender === 'you' ? 'you' : 'stranger'}`}
-              >
-                {msg.text}
-              </div>
-            ))
-          )}
-          <div ref={chatBottomRef}></div>
+          <section className="panel tips">
+            <h3>How it works</h3>
+            <ul>
+              <li>Press Start to enter the random queue.</li>
+              <li>Press Next to switch instantly to another user.</li>
+              <li>Press Leave to end the current chat.</li>
+              <li>When auto-search is enabled, disconnections trigger a new match.</li>
+            </ul>
+          </section>
         </div>
 
-        <form className="chat-form" onSubmit={onSendMessage}>
-          <input
-            type="text"
-            value={chatInput}
-            onChange={(event) => setChatInput(event.target.value)}
-            placeholder={inCall ? 'Type a message...' : 'Connect to start chatting'}
-            disabled={!inCall}
-            maxLength={500}
-          />
-          <button type="submit" disabled={!inCall || !chatInput.trim()}>
-            Send
-          </button>
-        </form>
-      </section>
+        <section className="panel chat-panel">
+          <h3>Chat</h3>
+          <div className="chat-list" aria-live="polite">
+            {chatMessages.length === 0 ? (
+              <p className="chat-empty">No messages yet. Say hi when connected.</p>
+            ) : (
+              chatMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`chat-bubble ${msg.sender === 'you' ? 'you' : 'stranger'}`}
+                >
+                  {msg.text}
+                </div>
+              ))
+            )}
+            <div ref={chatBottomRef}></div>
+          </div>
+
+          <form className="chat-form" onSubmit={onSendMessage}>
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              placeholder={inCall ? 'Type a message...' : 'Connect to start chatting'}
+              disabled={!inCall}
+              maxLength={500}
+            />
+            <button type="submit" disabled={!inCall || !chatInput.trim()}>
+              Send
+            </button>
+          </form>
+        </section>
+      </div>
     </main>
   )
 }
