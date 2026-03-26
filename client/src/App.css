@@ -72,9 +72,17 @@
   padding: 14px;
 }
 
+.stranger-card {
+  position: relative;
+}
+
 
 .video-card h2 {
   margin: 0 0 8px;
+}
+
+.video-frame {
+  position: relative;
 }
 
 .video-card video {
@@ -84,6 +92,121 @@
   background: #080d17;
   border-radius: 12px;
   object-fit: cover;
+}
+
+.network-strength {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.network-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.network-bars span {
+  width: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.45);
+}
+
+.network-bars span:nth-child(1) { height: 7px; }
+.network-bars span:nth-child(2) { height: 10px; }
+.network-bars span:nth-child(3) { height: 13px; }
+.network-bars span:nth-child(4) { height: 16px; }
+
+.network-strength.none .network-bars .active { background: #94a3b8; }
+.network-strength.poor .network-bars .active { background: #ef4444; }
+.network-strength.fair .network-bars .active { background: #f59e0b; }
+.network-strength.good .network-bars .active { background: #22c55e; }
+.network-strength.strong .network-bars .active { background: #14b8a6; }
+
+.stranger-card.connecting {
+  box-shadow: 0 0 0 1px rgba(248, 74, 114, 0.35), 0 0 28px rgba(255, 122, 24, 0.22);
+  animation: framePulse 1.7s ease-in-out infinite;
+}
+
+.stranger-card.waiting {
+  box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.3), 0 0 22px rgba(20, 184, 166, 0.2);
+  animation: framePulse 2.1s ease-in-out infinite;
+}
+
+.stranger-card.connecting::after {
+  content: '';
+  position: absolute;
+  inset: 46px 14px 14px;
+  border-radius: 12px;
+  background: linear-gradient(120deg, transparent 18%, rgba(255, 122, 24, 0.26) 45%, rgba(248, 74, 114, 0.24) 56%, transparent 72%);
+  background-size: 220% 100%;
+  animation: scanLine 1.35s linear infinite;
+  pointer-events: none;
+}
+
+.stranger-card.waiting::after {
+  content: '';
+  position: absolute;
+  inset: 46px 14px 14px;
+  border-radius: 12px;
+  background: linear-gradient(120deg, transparent 18%, rgba(20, 184, 166, 0.18) 45%, rgba(14, 165, 233, 0.2) 56%, transparent 72%);
+  background-size: 220% 100%;
+  animation: scanLine 1.9s linear infinite;
+  pointer-events: none;
+}
+
+.connecting-label {
+  position: absolute;
+  right: 24px;
+  top: 20px;
+  z-index: 1;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(8, 13, 23, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.stranger-card.connecting .connecting-label {
+  background: linear-gradient(125deg, rgba(255, 122, 24, 0.85), rgba(248, 74, 114, 0.8));
+  border-color: rgba(255, 167, 94, 0.7);
+}
+
+.stranger-card.waiting .connecting-label {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.8), rgba(14, 165, 233, 0.75));
+  border-color: rgba(125, 211, 252, 0.6);
+}
+
+@keyframes framePulse {
+  0% {
+    transform: translateY(0) scale(1);
+    filter: saturate(1);
+  }
+  50% {
+    transform: translateY(-1px) scale(1.004);
+    filter: saturate(1.08);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    filter: saturate(1);
+  }
+}
+
+@keyframes scanLine {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -20% 0;
+  }
 }
 
 .buttons {

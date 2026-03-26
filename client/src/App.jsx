@@ -21,9 +21,13 @@ function App() {
   const [status, setStatus] = useState('Ready to start')
   const [connected, setConnected] = useState(false)
   const [inCall, setInCall] = useState(false)
+  const [isStrangerConnecting, setIsStrangerConnecting] = useState(false)
+  const [isWaitingForMatch, setIsWaitingForMatch] = useState(false)
   const [autoSearch, setAutoSearch] = useState(true)
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState([])
+  const [localNetwork, setLocalNetwork] = useState({ label: 'Checking', level: 2 })
+  const [remoteNetwork, setRemoteNetwork] = useState({ label: 'Waiting', level: 0 })
 
   const socketRef = useRef(null)
   const localVideoRef = useRef(null)
@@ -35,10 +39,137 @@ function App() {
   const pendingIceCandidatesRef = useRef([])
   const isRematchingRef = useRef(false)
   const chatBottomRef = useRef(null)
+  const statsIntervalRef = useRef(null)
+  const lastVideoBytesRef = useRef({ bytes: 0, timestamp: 0 })
+  const currentQualityRef = useRef('high')
 
   const clearChat = () => {
     setChatMessages([])
     setChatInput('')
+  }
+
+  const getNetworkClass = (level) => {
+    if (level >= 4) return 'strong'
+    if (level === 3) return 'good'
+    if (level === 2) return 'fair'
+    if (level === 1) return 'poor'
+    return 'none'
+  }
+
+  const stopStatsMonitoring = () => {
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current)
+      statsIntervalRef.current = null
+    }
+    lastVideoBytesRef.current = { bytes: 0, timestamp: 0 }
+  }
+
+  const applyAdaptiveQuality = (profile) => {
+    if (!peerRef.current || currentQualityRef.current === profile) {
+      return
+    }
+
+    const videoSender = peerRef.current.getSenders().find((sender) => sender.track?.kind === 'video')
+    if (!videoSender?.getParameters || !videoSender?.setParameters) {
+      return
+    }
+
+    const params = videoSender.getParameters()
+    if (!params.encodings || params.encodings.length === 0) {
+      params.encodings = [{}]
+    }
+
+    const encoding = params.encodings[0]
+    if (profile === 'low') {
+      encoding.maxBitrate = 250000
+      encoding.maxFramerate = 15
+      encoding.scaleResolutionDownBy = 2
+    } else if (profile === 'medium') {
+      encoding.maxBitrate = 550000
+      encoding.maxFramerate = 20
+      encoding.scaleResolutionDownBy = 1.4
+    } else {
+      encoding.maxBitrate = 1200000
+      encoding.maxFramerate = 30
+      encoding.scaleResolutionDownBy = 1
+    }
+
+    currentQualityRef.current = profile
+    videoSender.setParameters(params).catch(() => {
+      currentQualityRef.current = profile
+    })
+  }
+
+  const startStatsMonitoring = () => {
+    stopStatsMonitoring()
+
+    if (!peerRef.current) {
+      return
+    }
+
+    statsIntervalRef.current = setInterval(async () => {
+      if (!peerRef.current) {
+        return
+      }
+
+      const stats = await peerRef.current.getStats()
+      let inboundVideo = null
+      let selectedPair = null
+
+      stats.forEach((report) => {
+        if (report.type === 'inbound-rtp' && report.kind === 'video' && !report.isRemote) {
+          inboundVideo = report
+        }
+        if (
+          report.type === 'candidate-pair' &&
+          report.state === 'succeeded' &&
+          report.nominated
+        ) {
+          selectedPair = report
+        }
+      })
+
+      if (!inboundVideo) {
+        return
+      }
+
+      const nowBytes = inboundVideo.bytesReceived || 0
+      const nowTimestamp = inboundVideo.timestamp || 0
+      const previous = lastVideoBytesRef.current
+
+      let bitrateKbps = 0
+      if (previous.timestamp > 0 && nowTimestamp > previous.timestamp) {
+        bitrateKbps = ((nowBytes - previous.bytes) * 8) / (nowTimestamp - previous.timestamp)
+      }
+      lastVideoBytesRef.current = { bytes: nowBytes, timestamp: nowTimestamp }
+
+      const packetsLost = inboundVideo.packetsLost || 0
+      const packetsReceived = inboundVideo.packetsReceived || 0
+      const packetLossRatio = packetsReceived + packetsLost > 0
+        ? packetsLost / (packetsReceived + packetsLost)
+        : 0
+
+      const jitterMs = (inboundVideo.jitter || 0) * 1000
+      const rttMs = ((selectedPair && selectedPair.currentRoundTripTime) || 0) * 1000
+
+      let level = 4
+      if (bitrateKbps < 220) level -= 1
+      if (packetLossRatio > 0.08) level -= 1
+      if (jitterMs > 120) level -= 1
+      if (rttMs > 450) level -= 1
+      level = Math.max(0, Math.min(4, level))
+
+      const labelMap = ['No Signal', 'Poor', 'Fair', 'Good', 'Strong']
+      setRemoteNetwork({ label: labelMap[level], level })
+
+      if (level <= 1) {
+        applyAdaptiveQuality('low')
+      } else if (level === 2) {
+        applyAdaptiveQuality('medium')
+      } else {
+        applyAdaptiveQuality('high')
+      }
+    }, 2000)
   }
 
   const cleanupPeer = ({ clearRoom = true } = {}) => {
@@ -55,6 +186,10 @@ function App() {
     }
 
     pendingIceCandidatesRef.current = []
+    setIsStrangerConnecting(false)
+    setIsWaitingForMatch(false)
+    setRemoteNetwork({ label: 'Waiting', level: 0 })
+    stopStatsMonitoring()
     if (clearRoom) {
       roomIdRef.current = null
     }
@@ -68,6 +203,7 @@ function App() {
       return
     }
     setStatus('Searching for a random user...')
+    setIsWaitingForMatch(true)
     clearChat()
     socketRef.current.emit('join-random')
   }
@@ -101,7 +237,10 @@ function App() {
       return
     }
 
+    setIsStrangerConnecting(true)
     cleanupPeer({ clearRoom: false })
+    setIsStrangerConnecting(true)
+    setRemoteNetwork({ label: 'Connecting', level: 1 })
 
     const peer = new RTCPeerConnection(rtcConfig)
     peerRef.current = peer
@@ -119,6 +258,7 @@ function App() {
 
       if (remoteVideoRef.current && stream) {
         remoteVideoRef.current.srcObject = stream
+        setIsStrangerConnecting(false)
         remoteVideoRef.current.play().catch(() => {
           setStatus('Connected. Click the page once if remote audio is blocked.')
         })
@@ -127,7 +267,13 @@ function App() {
 
     peer.onconnectionstatechange = () => {
       if (peer.connectionState === 'connected') {
+        setIsStrangerConnecting(false)
         setStatus('You are now connected with a stranger')
+        startStatsMonitoring()
+      }
+
+      if (peer.connectionState === 'disconnected' || peer.connectionState === 'failed') {
+        setRemoteNetwork({ label: 'Poor', level: 1 })
       }
     }
 
@@ -151,6 +297,7 @@ function App() {
     }
 
     setInCall(true)
+    startStatsMonitoring()
   }
 
   useEffect(() => {
@@ -196,11 +343,15 @@ function App() {
 
         socket.on('waiting', () => {
           setStatus('Waiting for someone to connect...')
+          setIsWaitingForMatch(true)
+          setIsStrangerConnecting(false)
         })
 
         socket.on('matched', async ({ roomId, initiator }) => {
           roomIdRef.current = roomId
           clearChat()
+          setIsWaitingForMatch(false)
+          setIsStrangerConnecting(true)
           setStatus('Connected! Starting call...')
           await createPeerConnection(initiator)
         })
@@ -297,6 +448,45 @@ function App() {
     }
   }, [chatMessages])
 
+  useEffect(() => {
+    const network = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+    if (!network) {
+      setLocalNetwork({ label: 'Unknown', level: 2 })
+      return
+    }
+
+    const updateLocalNetwork = () => {
+      const effectiveType = network.effectiveType || ''
+      const downlink = typeof network.downlink === 'number' ? network.downlink : 0
+
+      let level = 2
+      let label = 'Fair'
+
+      if (effectiveType === '4g' && downlink >= 5) {
+        level = 4
+        label = 'Strong'
+      } else if (effectiveType === '4g' || downlink >= 2) {
+        level = 3
+        label = 'Good'
+      } else if (effectiveType === '3g' || downlink >= 0.9) {
+        level = 2
+        label = 'Fair'
+      } else if (effectiveType === '2g' || effectiveType === 'slow-2g' || downlink < 0.9) {
+        level = 1
+        label = 'Poor'
+      }
+
+      setLocalNetwork({ label, level })
+    }
+
+    updateLocalNetwork()
+    network.addEventListener('change', updateLocalNetwork)
+
+    return () => {
+      network.removeEventListener('change', updateLocalNetwork)
+    }
+  }, [])
+
   const onLeave = () => {
     cleanupPeer()
     clearChat()
@@ -371,11 +561,46 @@ function App() {
           <section className="videos">
             <div className="video-card">
               <h2>You</h2>
-              <video ref={localVideoRef} autoPlay muted playsInline />
+              <div className="video-frame">
+                <video ref={localVideoRef} autoPlay muted playsInline />
+                <div
+                  className={`network-strength ${getNetworkClass(localNetwork.level)}`}
+                  aria-label={`Your network ${localNetwork.label}`}
+                  title={`Your network: ${localNetwork.label}`}
+                >
+                  <span className="network-bars" aria-hidden="true">
+                    {[1, 2, 3, 4].map((bar) => (
+                      <span key={bar} className={localNetwork.level >= bar ? 'active' : ''}></span>
+                    ))}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="video-card">
+            <div
+              className={`video-card stranger-card ${
+                isStrangerConnecting ? 'connecting' : isWaitingForMatch ? 'waiting' : ''
+              }`}
+            >
               <h2>Stranger</h2>
-              <video ref={remoteVideoRef} autoPlay playsInline />
+              {(isStrangerConnecting || isWaitingForMatch) && (
+                <span className="connecting-label">
+                  {isStrangerConnecting ? 'Connecting...' : 'Waiting for user...'}
+                </span>
+              )}
+              <div className="video-frame">
+                <video ref={remoteVideoRef} autoPlay playsInline />
+                <div
+                  className={`network-strength ${getNetworkClass(remoteNetwork.level)}`}
+                  aria-label={`Stranger network ${remoteNetwork.label}`}
+                  title={`Stranger network: ${remoteNetwork.label}`}
+                >
+                  <span className="network-bars" aria-hidden="true">
+                    {[1, 2, 3, 4].map((bar) => (
+                      <span key={bar} className={remoteNetwork.level >= bar ? 'active' : ''}></span>
+                    ))}
+                  </span>
+                </div>
+              </div>
             </div>
           </section>
 
