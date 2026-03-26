@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://stranger-video.vercel.app/sitemap.xml

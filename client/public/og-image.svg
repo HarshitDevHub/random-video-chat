@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Random Video Chat Online">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0d1020" />
+      <stop offset="60%" stop-color="#16213b" />
+      <stop offset="100%" stop-color="#0b1b2f" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#ff7a18" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <circle cx="180" cy="110" r="180" fill="#f9731629" />
+  <circle cx="1070" cy="120" r="190" fill="#6366f133" />
+  <rect x="78" y="150" width="1044" height="330" rx="28" fill="#0f172acc" stroke="#ffffff33" />
+  <text x="120" y="255" fill="#f8fafc" font-size="62" font-family="Segoe UI, Arial, sans-serif" font-weight="700">
+    Random Video Chat Online
+  </text>
+  <text x="120" y="325" fill="#cbd5e1" font-size="34" font-family="Segoe UI, Arial, sans-serif">
+    Talk to strangers instantly with video, voice, and live chat
+  </text>
+  <rect x="120" y="362" width="520" height="70" rx="35" fill="url(#accent)" />
+  <text x="380" y="407" text-anchor="middle" fill="#ffffff" font-size="30" font-family="Segoe UI, Arial, sans-serif" font-weight="700">
+    stranger-video.vercel.app
+  </text>
+</svg>
