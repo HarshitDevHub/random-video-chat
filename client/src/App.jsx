@@ -17,6 +17,37 @@ const QUICK_MESSAGES = [
   'One sec please',
 ]
 
+const MicOnIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M12 15.5a3.5 3.5 0 0 0 3.5-3.5V7a3.5 3.5 0 1 0-7 0v5a3.5 3.5 0 0 0 3.5 3.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5.5 11.5v.5a6.5 6.5 0 0 0 13 0v-.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+)
+
+const MicOffIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M12 15.5a3.5 3.5 0 0 0 3.5-3.5V11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M8.5 12V7a3.5 3.5 0 1 1 7 0v1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M5.5 11.5v.5a6.5 6.5 0 0 0 9.2 5.92" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M4 4 20 20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+)
+
+const CameraOnIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="3.5" y="6.5" width="12" height="11" rx="2.2" stroke="currentColor" strokeWidth="1.8" />
+    <path d="m15.5 10 5-2.8v9.6l-5-2.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
+const CameraOffIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="3.5" y="6.5" width="12" height="11" rx="2.2" stroke="currentColor" strokeWidth="1.8" />
+    <path d="m15.5 10 5-2.8v9.6l-5-2.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 4 20 20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+)
+
 function App() {
   const [status, setStatus] = useState('Ready to start')
   const [connected, setConnected] = useState(false)
@@ -24,10 +55,12 @@ function App() {
   const [isStrangerConnecting, setIsStrangerConnecting] = useState(false)
   const [isWaitingForMatch, setIsWaitingForMatch] = useState(false)
   const [autoSearch, setAutoSearch] = useState(true)
+  const [isMicOn, setIsMicOn] = useState(true)
+  const [isVideoOn, setIsVideoOn] = useState(true)
+  const [isPeerMicOn, setIsPeerMicOn] = useState(true)
+  const [isPeerVideoOn, setIsPeerVideoOn] = useState(true)
   const [chatInput, setChatInput] = useState('')
   const [chatMessages, setChatMessages] = useState([])
-  const [localNetwork, setLocalNetwork] = useState({ label: 'Checking', level: 2 })
-  const [remoteNetwork, setRemoteNetwork] = useState({ label: 'Waiting', level: 0 })
 
   const socketRef = useRef(null)
   const localVideoRef = useRef(null)
@@ -39,137 +72,24 @@ function App() {
   const pendingIceCandidatesRef = useRef([])
   const isRematchingRef = useRef(false)
   const chatBottomRef = useRef(null)
-  const statsIntervalRef = useRef(null)
-  const lastVideoBytesRef = useRef({ bytes: 0, timestamp: 0 })
-  const currentQualityRef = useRef('high')
+  const micOnRef = useRef(true)
+  const videoOnRef = useRef(true)
 
   const clearChat = () => {
     setChatMessages([])
     setChatInput('')
   }
 
-  const getNetworkClass = (level) => {
-    if (level >= 4) return 'strong'
-    if (level === 3) return 'good'
-    if (level === 2) return 'fair'
-    if (level === 1) return 'poor'
-    return 'none'
-  }
-
-  const stopStatsMonitoring = () => {
-    if (statsIntervalRef.current) {
-      clearInterval(statsIntervalRef.current)
-      statsIntervalRef.current = null
-    }
-    lastVideoBytesRef.current = { bytes: 0, timestamp: 0 }
-  }
-
-  const applyAdaptiveQuality = (profile) => {
-    if (!peerRef.current || currentQualityRef.current === profile) {
+  const emitMediaState = (nextMicOn = micOnRef.current, nextVideoOn = videoOnRef.current) => {
+    if (!socketRef.current?.connected || !roomIdRef.current) {
       return
     }
 
-    const videoSender = peerRef.current.getSenders().find((sender) => sender.track?.kind === 'video')
-    if (!videoSender?.getParameters || !videoSender?.setParameters) {
-      return
-    }
-
-    const params = videoSender.getParameters()
-    if (!params.encodings || params.encodings.length === 0) {
-      params.encodings = [{}]
-    }
-
-    const encoding = params.encodings[0]
-    if (profile === 'low') {
-      encoding.maxBitrate = 250000
-      encoding.maxFramerate = 15
-      encoding.scaleResolutionDownBy = 2
-    } else if (profile === 'medium') {
-      encoding.maxBitrate = 550000
-      encoding.maxFramerate = 20
-      encoding.scaleResolutionDownBy = 1.4
-    } else {
-      encoding.maxBitrate = 1200000
-      encoding.maxFramerate = 30
-      encoding.scaleResolutionDownBy = 1
-    }
-
-    currentQualityRef.current = profile
-    videoSender.setParameters(params).catch(() => {
-      currentQualityRef.current = profile
+    socketRef.current.emit('media-state', {
+      roomId: roomIdRef.current,
+      micOn: nextMicOn,
+      videoOn: nextVideoOn,
     })
-  }
-
-  const startStatsMonitoring = () => {
-    stopStatsMonitoring()
-
-    if (!peerRef.current) {
-      return
-    }
-
-    statsIntervalRef.current = setInterval(async () => {
-      if (!peerRef.current) {
-        return
-      }
-
-      const stats = await peerRef.current.getStats()
-      let inboundVideo = null
-      let selectedPair = null
-
-      stats.forEach((report) => {
-        if (report.type === 'inbound-rtp' && report.kind === 'video' && !report.isRemote) {
-          inboundVideo = report
-        }
-        if (
-          report.type === 'candidate-pair' &&
-          report.state === 'succeeded' &&
-          report.nominated
-        ) {
-          selectedPair = report
-        }
-      })
-
-      if (!inboundVideo) {
-        return
-      }
-
-      const nowBytes = inboundVideo.bytesReceived || 0
-      const nowTimestamp = inboundVideo.timestamp || 0
-      const previous = lastVideoBytesRef.current
-
-      let bitrateKbps = 0
-      if (previous.timestamp > 0 && nowTimestamp > previous.timestamp) {
-        bitrateKbps = ((nowBytes - previous.bytes) * 8) / (nowTimestamp - previous.timestamp)
-      }
-      lastVideoBytesRef.current = { bytes: nowBytes, timestamp: nowTimestamp }
-
-      const packetsLost = inboundVideo.packetsLost || 0
-      const packetsReceived = inboundVideo.packetsReceived || 0
-      const packetLossRatio = packetsReceived + packetsLost > 0
-        ? packetsLost / (packetsReceived + packetsLost)
-        : 0
-
-      const jitterMs = (inboundVideo.jitter || 0) * 1000
-      const rttMs = ((selectedPair && selectedPair.currentRoundTripTime) || 0) * 1000
-
-      let level = 4
-      if (bitrateKbps < 220) level -= 1
-      if (packetLossRatio > 0.08) level -= 1
-      if (jitterMs > 120) level -= 1
-      if (rttMs > 450) level -= 1
-      level = Math.max(0, Math.min(4, level))
-
-      const labelMap = ['No Signal', 'Poor', 'Fair', 'Good', 'Strong']
-      setRemoteNetwork({ label: labelMap[level], level })
-
-      if (level <= 1) {
-        applyAdaptiveQuality('low')
-      } else if (level === 2) {
-        applyAdaptiveQuality('medium')
-      } else {
-        applyAdaptiveQuality('high')
-      }
-    }, 2000)
   }
 
   const cleanupPeer = ({ clearRoom = true } = {}) => {
@@ -188,8 +108,8 @@ function App() {
     pendingIceCandidatesRef.current = []
     setIsStrangerConnecting(false)
     setIsWaitingForMatch(false)
-    setRemoteNetwork({ label: 'Waiting', level: 0 })
-    stopStatsMonitoring()
+    setIsPeerMicOn(true)
+    setIsPeerVideoOn(true)
     if (clearRoom) {
       roomIdRef.current = null
     }
@@ -240,7 +160,6 @@ function App() {
     setIsStrangerConnecting(true)
     cleanupPeer({ clearRoom: false })
     setIsStrangerConnecting(true)
-    setRemoteNetwork({ label: 'Connecting', level: 1 })
 
     const peer = new RTCPeerConnection(rtcConfig)
     peerRef.current = peer
@@ -269,11 +188,6 @@ function App() {
       if (peer.connectionState === 'connected') {
         setIsStrangerConnecting(false)
         setStatus('You are now connected with a stranger')
-        startStatsMonitoring()
-      }
-
-      if (peer.connectionState === 'disconnected' || peer.connectionState === 'failed') {
-        setRemoteNetwork({ label: 'Poor', level: 1 })
       }
     }
 
@@ -297,7 +211,6 @@ function App() {
     }
 
     setInCall(true)
-    startStatsMonitoring()
   }
 
   useEffect(() => {
@@ -350,10 +263,14 @@ function App() {
         socket.on('matched', async ({ roomId, initiator }) => {
           roomIdRef.current = roomId
           clearChat()
+          setIsPeerMicOn(true)
+          setIsPeerVideoOn(true)
           setIsWaitingForMatch(false)
           setIsStrangerConnecting(true)
           setStatus('Connected! Starting call...')
           await createPeerConnection(initiator)
+          emitMediaState()
+          socket.emit('request-media-state', { roomId })
         })
 
         socket.on('signal', async ({ signal }) => {
@@ -414,6 +331,15 @@ function App() {
             },
           ])
         })
+
+        socket.on('peer-media-state', ({ micOn, videoOn }) => {
+          setIsPeerMicOn(Boolean(micOn))
+          setIsPeerVideoOn(Boolean(videoOn))
+        })
+
+        socket.on('request-media-state', () => {
+          emitMediaState()
+        })
       } catch {
         setStatus('Camera or microphone access failed')
       }
@@ -443,49 +369,18 @@ function App() {
   }, [autoSearch])
 
   useEffect(() => {
+    micOnRef.current = isMicOn
+    videoOnRef.current = isVideoOn
+    if (inCall) {
+      emitMediaState(isMicOn, isVideoOn)
+    }
+  }, [isMicOn, isVideoOn, inCall])
+
+  useEffect(() => {
     if (chatBottomRef.current) {
       chatBottomRef.current.scrollIntoView({ behavior: 'smooth' })
     }
   }, [chatMessages])
-
-  useEffect(() => {
-    const network = navigator.connection || navigator.mozConnection || navigator.webkitConnection
-    if (!network) {
-      setLocalNetwork({ label: 'Unknown', level: 2 })
-      return
-    }
-
-    const updateLocalNetwork = () => {
-      const effectiveType = network.effectiveType || ''
-      const downlink = typeof network.downlink === 'number' ? network.downlink : 0
-
-      let level = 2
-      let label = 'Fair'
-
-      if (effectiveType === '4g' && downlink >= 5) {
-        level = 4
-        label = 'Strong'
-      } else if (effectiveType === '4g' || downlink >= 2) {
-        level = 3
-        label = 'Good'
-      } else if (effectiveType === '3g' || downlink >= 0.9) {
-        level = 2
-        label = 'Fair'
-      } else if (effectiveType === '2g' || effectiveType === 'slow-2g' || downlink < 0.9) {
-        level = 1
-        label = 'Poor'
-      }
-
-      setLocalNetwork({ label, level })
-    }
-
-    updateLocalNetwork()
-    network.addEventListener('change', updateLocalNetwork)
-
-    return () => {
-      network.removeEventListener('change', updateLocalNetwork)
-    }
-  }, [])
 
   const onLeave = () => {
     cleanupPeer()
@@ -503,6 +398,32 @@ function App() {
       socketRef.current.emit('next-user')
       setStatus('Finding next random user...')
     }
+  }
+
+  const toggleMic = () => {
+    if (!localStreamRef.current) {
+      return
+    }
+
+    const nextState = !isMicOn
+    localStreamRef.current.getAudioTracks().forEach((track) => {
+      track.enabled = nextState
+    })
+    setIsMicOn(nextState)
+    emitMediaState(nextState, isVideoOn)
+  }
+
+  const toggleVideo = () => {
+    if (!localStreamRef.current) {
+      return
+    }
+
+    const nextState = !isVideoOn
+    localStreamRef.current.getVideoTracks().forEach((track) => {
+      track.enabled = nextState
+    })
+    setIsVideoOn(nextState)
+    emitMediaState(isMicOn, nextState)
   }
 
   const sendChatMessage = (rawMessage) => {
@@ -560,20 +481,21 @@ function App() {
         <div className="left-column">
           <section className="videos">
             <div className="video-card">
-              <h2>You</h2>
-              <div className="video-frame">
+              <div className="video-title-row">
+                <h2>You</h2>
+                <span className={`state-chip ${isVideoOn ? 'on' : 'off'}`}>
+                  {isVideoOn ? <CameraOnIcon /> : <CameraOffIcon />}
+                  {isVideoOn ? 'Camera On' : 'Camera Off'}
+                </span>
+              </div>
+              <div className={`video-frame ${isVideoOn ? '' : 'video-off'}`}>
                 <video ref={localVideoRef} autoPlay muted playsInline />
-                <div
-                  className={`network-strength ${getNetworkClass(localNetwork.level)}`}
-                  aria-label={`Your network ${localNetwork.label}`}
-                  title={`Your network: ${localNetwork.label}`}
-                >
-                  <span className="network-bars" aria-hidden="true">
-                    {[1, 2, 3, 4].map((bar) => (
-                      <span key={bar} className={localNetwork.level >= bar ? 'active' : ''}></span>
-                    ))}
-                  </span>
-                </div>
+                {!isVideoOn && (
+                  <div className="video-off-overlay">
+                    <CameraOffIcon />
+                    <span>Camera Off</span>
+                  </div>
+                )}
               </div>
             </div>
             <div
@@ -581,25 +503,37 @@ function App() {
                 isStrangerConnecting ? 'connecting' : isWaitingForMatch ? 'waiting' : ''
               }`}
             >
-              <h2>Stranger</h2>
+              <div className="video-title-row">
+                <h2>Stranger</h2>
+                <div className="peer-state-row">
+                  <span className={`state-icon ${isPeerMicOn ? 'on' : 'off'}`} title={isPeerMicOn ? 'Mic on' : 'Mic off'}>
+                    {isPeerMicOn ? <MicOnIcon /> : <MicOffIcon />}
+                  </span>
+                  <span className={`state-icon ${isPeerVideoOn ? 'on' : 'off'}`} title={isPeerVideoOn ? 'Camera on' : 'Camera off'}>
+                    {isPeerVideoOn ? <CameraOnIcon /> : <CameraOffIcon />}
+                  </span>
+                </div>
+              </div>
               {(isStrangerConnecting || isWaitingForMatch) && (
                 <span className="connecting-label">
                   {isStrangerConnecting ? 'Connecting...' : 'Waiting for user...'}
                 </span>
               )}
-              <div className="video-frame">
+              <div className={`video-frame ${isPeerVideoOn ? '' : 'video-off'}`}>
                 <video ref={remoteVideoRef} autoPlay playsInline />
-                <div
-                  className={`network-strength ${getNetworkClass(remoteNetwork.level)}`}
-                  aria-label={`Stranger network ${remoteNetwork.label}`}
-                  title={`Stranger network: ${remoteNetwork.label}`}
-                >
-                  <span className="network-bars" aria-hidden="true">
-                    {[1, 2, 3, 4].map((bar) => (
-                      <span key={bar} className={remoteNetwork.level >= bar ? 'active' : ''}></span>
-                    ))}
-                  </span>
-                </div>
+                {!isPeerVideoOn && (
+                  <div className="video-off-overlay peer">
+                    <span className="peer-camera-off-icon" aria-label="Peer camera off" title="Peer camera off">
+                      <CameraOffIcon />
+                    </span>
+                  </div>
+                )}
+                {!isPeerMicOn && (
+                  <div className="peer-mic-off-badge" title="Peer microphone is off">
+                    <MicOffIcon />
+                    <span>Peer Mic Off</span>
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -609,6 +543,26 @@ function App() {
               <button onClick={requestMatch}>Start</button>
               <button onClick={onNext} disabled={!connected}>Next</button>
               <button onClick={onLeave} disabled={!inCall}>Leave</button>
+            </div>
+            <div className="media-toggles">
+              <button
+                type="button"
+                className={`icon-toggle ${isMicOn ? 'on' : 'off'}`}
+                onClick={toggleMic}
+                title={isMicOn ? 'Turn microphone off' : 'Turn microphone on'}
+                aria-label={isMicOn ? 'Turn microphone off' : 'Turn microphone on'}
+              >
+                {isMicOn ? <MicOnIcon /> : <MicOffIcon />}
+              </button>
+              <button
+                type="button"
+                className={`icon-toggle ${isVideoOn ? 'on' : 'off'}`}
+                onClick={toggleVideo}
+                title={isVideoOn ? 'Turn camera off' : 'Turn camera on'}
+                aria-label={isVideoOn ? 'Turn camera off' : 'Turn camera on'}
+              >
+                {isVideoOn ? <CameraOnIcon /> : <CameraOffIcon />}
+              </button>
             </div>
             <label className="auto-search">
               <input

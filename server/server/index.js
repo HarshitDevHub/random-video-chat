@@ -193,6 +193,36 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('media-state', ({ roomId, micOn, videoOn }) => {
+    if (!roomId) {
+      return;
+    }
+
+    if (roomBySocket.get(socket.id) !== roomId) {
+      return;
+    }
+
+    socket.to(roomId).emit('peer-media-state', {
+      from: socket.id,
+      micOn: Boolean(micOn),
+      videoOn: Boolean(videoOn),
+    });
+  });
+
+  socket.on('request-media-state', ({ roomId }) => {
+    if (!roomId) {
+      return;
+    }
+
+    if (roomBySocket.get(socket.id) !== roomId) {
+      return;
+    }
+
+    socket.to(roomId).emit('request-media-state', {
+      from: socket.id,
+    });
+  });
+
   socket.on('next-user', () => {
     const peerSocket = notifyPeerAndCleanup(socket, 'peer-next');
 
